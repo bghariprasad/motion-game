@@ -163,6 +163,68 @@
 .track i { display: block; height: 100%; background: var(--accent); }
 .track i.hot { background: #ff8a3d; }
 
+
+.hand {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 8px;
+  margin-bottom: 8px;
+  background: #0e1216;
+}
+
+.hand-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.hand-head .muted { color: var(--muted); font-size: 10px; }
+
+.track i.cool { background: #2ce8e0; }
+
+.panel td.k.wide { width: 84px; }
+
+.mood {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+  letter-spacing: 0.01em;
+}
+
+.head-pose {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.track i.warm { background: #ffb43d; }
+
+.signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.signals span {
+  background: #171d24;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.signals b { color: var(--text); font-weight: 600; }
+
 @media (max-width: 900px) {
   .stage-wrap { grid-template-columns: 1fr; grid-template-rows: minmax(240px, 1fr) auto; }
 }

@@ -15,6 +15,8 @@ const EMPTY: Telemetry = {
   motionEnergy: 0,
   torsoLeanDeg: 0,
   hipHeight: 0,
+  hands: [],
+  face: null,
 };
 
 /** Telemetry is mirrored into React state at this interval; the canvas still draws every frame. */
@@ -38,12 +40,24 @@ export default function App() {
     showVideo: true,
     showFrames: true,
     showBones: true,
+    showHands: true,
+    showFace: true,
   });
   // The draw loop reads options without re-subscribing on every toggle.
   const optsRef = useRef(opts);
   useEffect(() => {
     optsRef.current = opts;
   }, [opts]);
+
+  // Hands and face are separate detectors, so these toggles gate inference,
+  // not just drawing.
+  useEffect(() => {
+    void engineRef.current?.setHandsEnabled(opts.showHands);
+  }, [opts.showHands]);
+
+  useEffect(() => {
+    void engineRef.current?.setFaceEnabled(opts.showFace);
+  }, [opts.showFace]);
 
   const start = useCallback(async () => {
     const video = videoRef.current;
@@ -52,7 +66,10 @@ export default function App() {
 
     setBusy(true);
     setError(null);
-    const engine = new PoseEngine(video);
+    const engine = new PoseEngine(video, {
+      hands: optsRef.current.showHands,
+      face: optsRef.current.showFace,
+    });
     engineRef.current = engine;
 
     engine.onFrame((frame, inferenceMs) => {
@@ -114,10 +131,21 @@ export default function App() {
       <header className="topbar">
         <h1>Camera Motion Harness</h1>
         <div className="controls">
-          {(['mirrored', 'showVideo', 'showBones', 'showFrames'] as const).map((k) => (
+          {(
+            ['mirrored', 'showVideo', 'showBones', 'showFrames', 'showHands', 'showFace'] as const
+          ).map((k) => (
             <label key={k}>
               <input type="checkbox" checked={opts[k]} onChange={() => toggle(k)} />
-              {{ mirrored: 'Mirror', showVideo: 'Video', showBones: 'Skeleton', showFrames: 'Frames' }[k]}
+              {
+                {
+                  mirrored: 'Mirror',
+                  showVideo: 'Video',
+                  showBones: 'Skeleton',
+                  showFrames: 'Frames',
+                  showHands: 'Fingers',
+                  showFace: 'Face',
+                }[k]
+              }
             </label>
           ))}
           <button onClick={running ? stop : start} disabled={busy}>

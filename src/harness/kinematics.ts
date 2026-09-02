@@ -1,5 +1,9 @@
-import { L } from './landmarks';
+import { faceTelemetry } from './expression';
+import { FINGER_CURLS, FINGER_TIPS, H, L } from './landmarks';
 import type {
+  FingerState,
+  HandLandmarks,
+  HandTelemetry,
   JointAngle,
   JointFrame,
   PointVelocity,
@@ -121,6 +125,40 @@ const VELOCITY_POINTS: Array<[string, number]> = [
   ['R ankle', L.rightAnkle],
 ];
 
+/** A finger reads fully extended near 180 degrees and fully closed near 90. */
+function closedness(curlDeg: number): number {
+  return Math.min(1, Math.max(0, (180 - curlDeg) / 90));
+}
+
+/**
+ * Per-hand finger state. Fingertip motion is measured in hand-local world
+ * coordinates, so it isolates finger movement from arm movement.
+ */
+function handTelemetry(hand: HandLandmarks, prev: HandLandmarks | undefined, dt: number): HandTelemetry {
+  const w = hand.world;
+  const fingers: FingerState[] = FINGER_CURLS.map(([name, a, b, c]) => {
+    const curlDeg = angleAt(w[a], w[b], w[c]);
+    return { name, curlDeg, closed: closedness(curlDeg) };
+  });
+
+  let fingerMotion = 0;
+  if (prev && prev.world.length === w.length && dt > 1e-3 && dt < 0.5) {
+    for (const i of FINGER_TIPS) {
+      fingerMotion += len(sub(w[i], prev.world[i])) / dt;
+    }
+    fingerMotion /= FINGER_TIPS.length;
+  }
+
+  return {
+    handedness: hand.handedness,
+    score: hand.score,
+    fingers,
+    pinch: len(sub(w[H.thumbTip], w[H.indexTip])),
+    spread: len(sub(w[H.indexTip], w[H.pinkyTip])),
+    fingerMotion,
+  };
+}
+
 /**
  * Derives angles, velocities and posture scalars. Velocities are finite
  * differences against the previous frame, so `prev` must be the immediately
@@ -143,6 +181,8 @@ export function computeTelemetry(
       motionEnergy: 0,
       torsoLeanDeg: 0,
       hipHeight: 0,
+      hands: handsOf(frame, prev),
+      face: frame.face ? faceTelemetry(frame.face) : null,
     };
   }
 
@@ -184,7 +224,17 @@ export function computeTelemetry(
     motionEnergy,
     torsoLeanDeg,
     hipHeight: ankles.y - hips.y,
+    hands: handsOf(frame, prev),
+    face: frame.face ? faceTelemetry(frame.face) : null,
   };
+}
+
+/** Pairs each hand with the same hand in the previous frame, matched by handedness. */
+function handsOf(frame: PoseFrame, prev: PoseFrame | null): HandTelemetry[] {
+  const dt = prev ? (frame.t - prev.t) / 1000 : 0;
+  return frame.hands.map((h) =>
+    handTelemetry(h, prev?.hands.find((p) => p.handedness === h.handedness), dt),
+  );
 }
 
 /** Exponential smoothing, applied per-axis to suppress landmark jitter. */

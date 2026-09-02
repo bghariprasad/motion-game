@@ -24,11 +24,39 @@ export interface JointFrame {
   z: Vec3;
 }
 
+export type Handedness = 'Left' | 'Right';
+
+/** One detected hand. `world` is hand-local: origin at the hand's centre, in metres. */
+export interface HandLandmarks {
+  handedness: Handedness;
+  score: number;
+  screen: ScreenLandmark[];
+  world: WorldLandmark[];
+}
+
+export interface Blendshape {
+  name: string;
+  /** 0..1 activation. */
+  score: number;
+}
+
+export interface FaceLandmarks {
+  /** 478 landmarks in normalized image space. */
+  screen: ScreenLandmark[];
+  blendshapes: Blendshape[];
+  /** Flattened 4x4 facial transformation matrix, column-major. Null when unavailable. */
+  matrix: number[] | null;
+}
+
 export interface PoseFrame {
   /** performance.now() at capture time. */
   t: number;
   screen: ScreenLandmark[];
   world: WorldLandmark[];
+  /** Empty when hand tracking is disabled or no hand is in view. */
+  hands: HandLandmarks[];
+  /** Null when face tracking is disabled or no face is in view. */
+  face: FaceLandmarks | null;
 }
 
 export interface JointAngle {
@@ -46,6 +74,55 @@ export interface PointVelocity {
   vec: Vec3;
 }
 
+export interface FingerState {
+  name: string;
+  /** Interior angle at the finger's middle joint, in degrees. 180 is straight. */
+  curlDeg: number;
+  /** 0 fully extended, 1 fully closed. Derived from curlDeg. */
+  closed: number;
+}
+
+export interface HandTelemetry {
+  handedness: Handedness;
+  score: number;
+  fingers: FingerState[];
+  /** Thumb tip to index tip distance, in metres. */
+  pinch: number;
+  /** Index tip to pinky tip distance, in metres. */
+  spread: number;
+  /**
+   * Mean fingertip speed in the hand's own frame, in metres per second, so
+   * moving the whole arm does not register as finger movement.
+   */
+  fingerMotion: number;
+}
+
+export interface ExpressionState {
+  name: string;
+  /** 0..1 activation. */
+  score: number;
+}
+
+/** Head orientation in degrees. Yaw turns left/right, pitch nods, roll tilts. */
+export interface HeadPose {
+  yaw: number;
+  pitch: number;
+  roll: number;
+}
+
+export interface FaceTelemetry {
+  expressions: ExpressionState[];
+  /** The strongest raw blendshapes, strongest first, for inspecting the source signal. */
+  top: Blendshape[];
+  /** Coarse label: happy, surprised, angry, sad, or neutral. */
+  mood: string;
+  /** Confidence in `mood`; zero when neutral. */
+  moodScore: number;
+  blinkLeft: number;
+  blinkRight: number;
+  head: HeadPose;
+}
+
 export interface Telemetry {
   fps: number;
   /** Milliseconds spent inside the pose detector for the last frame. */
@@ -59,4 +136,8 @@ export interface Telemetry {
   torsoLeanDeg: number;
   /** Hip-midpoint height above the ankle midpoint, in metres. */
   hipHeight: number;
+  /** One entry per tracked hand; empty when hand tracking is off. */
+  hands: HandTelemetry[];
+  /** Null when face tracking is off or no face is in view. */
+  face: FaceTelemetry | null;
 }

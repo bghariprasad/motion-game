@@ -61,6 +61,84 @@ export function TelemetryPanel({ telemetry }: { telemetry: Telemetry }) {
         </tbody>
       </table>
 
+      {t.face && (
+        <>
+          <h3>Expression</h3>
+          <div className="hand">
+            <div className="hand-head">
+              <span className="mood">{t.face.mood}</span>
+              <span className="muted">
+                {t.face.moodScore > 0 ? `${fmt(t.face.moodScore * 100, 0)}%` : '\u2014'}
+              </span>
+            </div>
+            <table>
+              <tbody>
+                {t.face.expressions.map((e) => (
+                  <tr key={e.name}>
+                    <td className="k wide">{e.name}</td>
+                    <td className="v">{fmt(e.score * 100, 0)}</td>
+                    <td className="track">
+                      <i className="warm" style={{ width: `${e.score * 100}%` }} />
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="k wide">blink L / R</td>
+                  <td className="v">
+                    {fmt(t.face.blinkLeft * 100, 0)}/{fmt(t.face.blinkRight * 100, 0)}
+                  </td>
+                  <td className="track">
+                    <i
+                      className="cool"
+                      style={{ width: `${Math.max(t.face.blinkLeft, t.face.blinkRight) * 100}%` }}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            {t.face.top.length > 0 && (
+              <div className="signals">
+                {t.face.top.map((s) => (
+                  <span key={s.name} title={`${fmt(s.score * 100, 0)}%`}>
+                    {s.name} <b>{fmt(s.score * 100, 0)}</b>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="head-pose">
+              <span>yaw {fmt(t.face.head.yaw, 0)}&deg;</span>
+              <span>pitch {fmt(t.face.head.pitch, 0)}&deg;</span>
+              <span>roll {fmt(t.face.head.roll, 0)}&deg;</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {t.hands.length > 0 && <h3>Fingers</h3>}
+      {t.hands.map((h) => (
+        <div key={h.handedness} className="hand">
+          <div className="hand-head">
+            <span>{h.handedness} hand</span>
+            <span className="muted">
+              pinch {fmt(h.pinch * 100, 1)} cm &middot; motion {fmt(h.fingerMotion, 2)}
+            </span>
+          </div>
+          <table>
+            <tbody>
+              {h.fingers.map((f) => (
+                <tr key={f.name}>
+                  <td className="k">{f.name}</td>
+                  <td className="v">{fmt(f.curlDeg, 0)}&deg;</td>
+                  <td className="track">
+                    <i className="cool" style={{ width: `${f.closed * 100}%` }} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+
       <h3>Velocities</h3>
       <table>
         <tbody>

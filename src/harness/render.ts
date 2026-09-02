@@ -1,12 +1,15 @@
+import { FaceLandmarker } from '@mediapipe/tasks-vision';
 import { jointFrames } from './kinematics';
-import { BONES, GREEN_JOINTS, JOINT_DOTS, L } from './landmarks';
-import type { PoseFrame, Vec3 } from './types';
+import { BONES, FINGER_TIPS, GREEN_JOINTS, HAND_BONES, H, JOINT_DOTS, L } from './landmarks';
+import type { FaceLandmarks, HandLandmarks, PoseFrame, Vec3 } from './types';
 
 export interface RenderOptions {
   mirrored: boolean;
   showVideo: boolean;
   showFrames: boolean;
   showBones: boolean;
+  showHands: boolean;
+  showFace: boolean;
 }
 
 const AXIS_COLORS = ['#ff2020', '#20d020', '#2050ff'] as const;
@@ -67,6 +70,93 @@ function drawWorldFrame(ctx: CanvasRenderingContext2D, x: number, y: number, siz
   ctx.fillText('T', x - size - 15, y - 12);
 }
 
+interface Box {
+  ox: number;
+  oy: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Hands are drawn at a finer scale than the body: thin bones, small dots,
+ * fingertips picked out in cyan so pinch and grab gestures stay readable.
+ */
+function drawHand(
+  ctx: CanvasRenderingContext2D,
+  hand: HandLandmarks,
+  box: Box,
+  mirrored: boolean,
+): void {
+  const lms = hand.screen;
+  if (lms.length === 0) return;
+  const hx = (i: number) => box.ox + (mirrored ? 1 - lms[i].x : lms[i].x) * box.w;
+  const hy = (i: number) => box.oy + lms[i].y * box.h;
+
+  ctx.strokeStyle = '#101010';
+  ctx.lineWidth = Math.max(2, box.w * 0.003);
+  ctx.lineCap = 'round';
+  for (const [a, b] of HAND_BONES) {
+    ctx.beginPath();
+    ctx.moveTo(hx(a), hy(a));
+    ctx.lineTo(hx(b), hy(b));
+    ctx.stroke();
+  }
+
+  const tips = new Set(FINGER_TIPS);
+  const r = Math.max(2.5, box.w * 0.004);
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < lms.length; i++) {
+    ctx.fillStyle = i === H.wrist ? '#22c522' : tips.has(i) ? '#2ce8e0' : '#ffe11a';
+    ctx.beginPath();
+    ctx.arc(hx(i), hy(i), i === H.wrist ? r * 1.5 : r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#e8e8e8';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText(hand.handedness[0], hx(H.wrist) + r * 2.5, hy(H.wrist) - r * 2);
+}
+
+/**
+ * Contours only, never the full tesselation: the mesh's ~2600 triangles would
+ * bury the skeleton, and the feature outlines are what expression reads from.
+ */
+const FACE_CONTOURS: Array<{ connections: Array<{ start: number; end: number }>; color: string; width: number }> = [
+  { connections: FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, color: '#f0f0f0', width: 1.6 },
+  { connections: FaceLandmarker.FACE_LANDMARKS_LIPS, color: '#ff7a9c', width: 1.6 },
+  { connections: FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, color: '#2ce8e0', width: 1.4 },
+  { connections: FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, color: '#2ce8e0', width: 1.4 },
+  { connections: FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW, color: '#ffe11a', width: 1.6 },
+  { connections: FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW, color: '#ffe11a', width: 1.6 },
+  { connections: FaceLandmarker.FACE_LANDMARKS_LEFT_IRIS, color: '#4da3ff', width: 1.4 },
+  { connections: FaceLandmarker.FACE_LANDMARKS_RIGHT_IRIS, color: '#4da3ff', width: 1.4 },
+];
+
+function drawFace(
+  ctx: CanvasRenderingContext2D,
+  face: FaceLandmarks,
+  box: Box,
+  mirrored: boolean,
+): void {
+  const lms = face.screen;
+  if (lms.length === 0) return;
+  const fx = (i: number) => box.ox + (mirrored ? 1 - lms[i].x : lms[i].x) * box.w;
+  const fy = (i: number) => box.oy + lms[i].y * box.h;
+
+  for (const { connections, color, width } of FACE_CONTOURS) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    for (const c of connections) {
+      if (c.start >= lms.length || c.end >= lms.length) continue;
+      ctx.moveTo(fx(c.start), fy(c.start));
+      ctx.lineTo(fx(c.end), fy(c.end));
+    }
+    ctx.stroke();
+  }
+}
+
 export function renderPose(
   ctx: CanvasRenderingContext2D,
   frame: PoseFrame,
@@ -86,12 +176,12 @@ export function renderPose(
   drawWorldFrame(ctx, 56, ch - 40, 34);
 
   const lms = frame.screen;
-  if (lms.length === 0) return;
+  const hasPose = lms.length > 0;
 
   const px = (i: number) => box.ox + (opts.mirrored ? 1 - lms[i].x : lms[i].x) * box.w;
   const py = (i: number) => box.oy + lms[i].y * box.h;
 
-  if (opts.showBones) {
+  if (hasPose && opts.showBones) {
     ctx.strokeStyle = '#101010';
     ctx.lineWidth = Math.max(4, box.w * 0.008);
     ctx.lineCap = 'round';
@@ -110,7 +200,7 @@ export function renderPose(
     ctx.stroke();
   }
 
-  if (opts.showFrames && frame.world.length > 0) {
+  if (hasPose && opts.showFrames && frame.world.length > 0) {
     // Axis length in pixels; world axes are unit vectors so this is pure scale.
     const axisLen = Math.max(22, box.w * 0.045);
     const sx = opts.mirrored ? -1 : 1;
@@ -126,6 +216,14 @@ export function renderPose(
       }
     }
   }
+
+  if (opts.showFace && frame.face) drawFace(ctx, frame.face, box, opts.mirrored);
+
+  if (opts.showHands) {
+    for (const hand of frame.hands) drawHand(ctx, hand, box, opts.mirrored);
+  }
+
+  if (!hasPose) return;
 
   const r = Math.max(5, box.w * 0.009);
   ctx.lineWidth = 2;
